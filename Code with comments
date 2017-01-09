@@ -1,0 +1,169 @@
+/******************************************************************************
+Mux_Analog_Input
+SparkFun Multiplexer Analog Input Example
+Jim Lindblom @ SparkFun Electronics
+August 15, 2016
+https://github.com/sparkfun/74HC4051_8-Channel_Mux_Breakout
+
+This sketch demonstrates how to use the SparkFun Multiplexer
+Breakout - 8 Channel (74HC4051) to read eight, separate
+analog inputs, using just a single ADC channel.
+
+Hardware Hookup:
+Mux Breakout ----------- Arduino
+     S0 ------------------- 2
+     S1 ------------------- 3
+     S2 ------------------- 4
+     Z -------------------- A0
+    VCC ------------------- 5V
+    GND ------------------- GND
+    (VEE should be connected to GND)
+
+The multiplexers independent I/O (Y0-Y7) can each be wired
+up to a potentiometer or any other analog signal-producing
+component.
+
+Development environment specifics:
+Arduino 1.6.9
+SparkFun Multiplexer Breakout - 8-Channel(74HC4051) v10
+(https://www.sparkfun.com/products/13906)
+******************************************************************************/
+/////////////////////
+// Pin Definitions //
+/////////////////////
+#include <Wire.h>
+#include "RTClib.h"
+#include <SPI.h>
+#include <SD.h>
+const int sdPin = 10;
+const int temPin = 1;
+const int delayTime = 3000;
+
+const int selectPins[3] = {2, 3, 4}; // S0~2, S1~3, S2~4
+const int zOutput = 5; 
+const int zInput = A0; // Connect common (Z) to A0 (analog input)
+
+//RTC 
+
+
+
+// File open and RTC 
+File tempsFile;
+RTC_DS1307 rtc;
+DateTime now = rtc.now();
+
+void setup() 
+{
+  Serial.begin(9600); // Initialize the serial port
+ while (!Serial){;}
+ // SETS UP RTC and SD mods
+  if (! rtc.begin() || !SD.begin(sdPin) || !rtc.isrunning()) {
+    Serial.println("Initiation failed" );
+    return;}
+  Serial.println("Initialization done."); 
+  
+  // Set up the select pins as outputs:
+  for (int i=0; i<3; i++)
+  {
+    pinMode(selectPins[i], OUTPUT);
+    digitalWrite(selectPins[i], HIGH);
+  }
+  pinMode(zInput, INPUT); // Set up Z as an input
+
+  // Print the header:
+    Serial.print(now.year(), DEC);
+    Serial.print('/');
+    Serial.print(now.month(), DEC);
+    Serial.print('/');
+    Serial.print(now.day(), DEC);
+    Serial.print(' ');
+  Serial.println("Y0\tY1\tY2\tY3\tY4\tY5\tY6\tY7");
+  Serial.println("---\t---\t---\t---\t---\t---\t---\t---");
+  
+  tempsFile = SD.open("temps.txt", FILE_WRITE);
+   if (tempsFile) {
+    Serial.println("Checking . . .");
+    tempsFile.println("Checking . . .");
+    tempsFile.print(now.year(), DEC);
+    tempsFile.print('/');
+    tempsFile.print(now.month(), DEC);
+    tempsFile.print('/');
+    tempsFile.print(now.day(), DEC);
+    tempsFile.println("Done."); 
+    tempsFile.close(); } 
+  else {  Serial.println("Error opening file in setup."); }
+  }
+  
+void loop() 
+{
+   tempsFile = SD.open("temps.txt", FILE_WRITE);
+   if (tempsFile) 
+  {
+    // Temperature readings 
+    float voltage, degreesC;
+    voltage = getVoltage(temPin);
+    degreesC = (voltage - 0.5) * 100.0;
+    DateTime now = rtc.now();
+    
+   
+    Serial.print(' ');
+    Serial.print(now.hour(), DEC);
+    Serial.print(':');
+    Serial.print(now.minute(), DEC);
+    Serial.print(':');
+    Serial.print(now.second(), DEC);
+    Serial.print(' ');
+    Serial.print("Celsius: ");
+    Serial.print(degreesC);
+    Serial.println();
+
+ 
+    tempsFile.print(now.hour(), DEC);
+    tempsFile.print(':');
+    tempsFile.print(now.minute(), DEC);
+    tempsFile.print(':');
+    tempsFile.print(now.second(), DEC);
+    tempsFile.print(' ');
+    tempsFile.print("Celsius: ");
+    tempsFile.print(' ');
+    tempsFile.println(degreesC);
+  for (byte pin=0; pin<=7; pin++)
+  {
+    selectMuxPin(pin); // Select one at a time
+    int inputValue = analogRead(A0); // and read Z
+    tempsFile.print(String(inputValue) + "\t");
+  }
+  
+  Serial.println();
+  delay(1000);
+   
+   tempsFile.close();
+  }
+  else {
+    Serial.println("Error opening file in loop.");
+  }
+    delay(3000); 
+
+
+  
+  // Loop through all eight pins.
+
+}
+
+// The selectMuxPin function sets the S0, S1, and S2 pins
+// accordingly, given a pin from 0-7.
+void selectMuxPin(byte pin)
+{
+  for (int i=0; i<3; i++)
+  {
+    if (pin & (1<<i))
+      digitalWrite(selectPins[i], HIGH);
+    else
+      digitalWrite(selectPins[i], LOW);
+  }
+}
+float getVoltage(int pin)
+{
+  return (analogRead(pin) * 0.004882814);
+}   
+ 
